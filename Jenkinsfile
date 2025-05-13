@@ -5,7 +5,7 @@ pipeline {
         NODE_ENV = 'production'
         EC2_USER = 'ubuntu'
         EC2_IP = '23.21.175.134'
-        REMOTE_PATH = '/home/ubuntu/node-healthcheck'
+        REMOTE_PATH = '/home/ubuntu/JenkinsTest'
         SSH_KEY = credentials('ssh-key-ec2')
     }
 
