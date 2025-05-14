@@ -2,8 +2,8 @@ pipeline {
     agent any
     
     environment {
-        // Variables de entorno definidas directamente aquí
-        NODE_ENV = env.BRANCH_NAME == 'main' ? 'production' : (env.BRANCH_NAME == 'qa' || env.BRANCH_NAME == 'QA') ? 'qa' : 'development'
+        // Environment variables defined properly with string values
+        NODE_ENV = "${env.BRANCH_NAME == 'main' ? 'production' : (env.BRANCH_NAME == 'qa' || env.BRANCH_NAME == 'QA') ? 'qa' : 'dev'}"
         EC2_USER = 'ubuntu'
         EC2_IP_DEV = '34.239.38.109'
         EC2_IP_QA = '54.160.60.172'
@@ -12,7 +12,7 @@ pipeline {
         REMOTE_PATH_QA = '/home/ubuntu/JenkinsTest-qa'
         REMOTE_PATH_PROD = '/home/ubuntu/JenkinsTest'
         SSH_KEY = credentials('ssh-key-ec2')
-        APP_NAME = env.BRANCH_NAME == 'main' ? 'health-api' : (env.BRANCH_NAME == 'qa' || env.BRANCH_NAME == 'QA') ? 'health-api-qa' : 'health-api-dev'
+        APP_NAME = "${env.BRANCH_NAME == 'main' ? 'health-api' : (env.BRANCH_NAME == 'qa' || env.BRANCH_NAME == 'QA') ? 'health-api-qa' : 'health-api-dev'}"
     }
     
     stages {
@@ -51,12 +51,12 @@ pipeline {
                     def EC2_IP = ''
                     def REMOTE_PATH = ''
                     
-                    // Determinar IP y ruta según la rama
+                    // Determine IP and path based on branch
                     if (env.BRANCH_NAME == 'main') {
                         EC2_IP = EC2_IP_PROD
                         REMOTE_PATH = REMOTE_PATH_PROD
                         
-                        // Para producción, pedir confirmación
+                        // For production, request confirmation
                         input message: '¿Confirmar despliegue a PRODUCCIÓN?'
                     } else if (env.BRANCH_NAME == 'qa' || env.BRANCH_NAME == 'QA') {
                         EC2_IP = EC2_IP_QA
@@ -68,14 +68,14 @@ pipeline {
                     
                     echo "Desplegando en servidor ${NODE_ENV} (${EC2_IP})"
                     
-                    // Crear archivo .env en el servidor
+                    // Create .env file on the server
                     def envContent = """
 NODE_ENV=${NODE_ENV}
 PORT=3000
 API_URL=https://api${NODE_ENV == 'production' ? '' : '-' + NODE_ENV}.example.com
 """
                     
-                    // Desplegar la aplicación
+                    // Deploy the application
                     sh """
                     ssh -i \$SSH_KEY -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_IP} '
                         mkdir -p ${REMOTE_PATH} &&
@@ -87,12 +87,12 @@ API_URL=https://api${NODE_ENV == 'production' ? '' : '-' + NODE_ENV}.example.com
                     '
                     """
                     
-                    // Crear archivo .env en el servidor
+                    // Create .env file on the server
                     sh """
                     echo '${envContent}' | ssh -i \$SSH_KEY -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_IP} 'cat > ${REMOTE_PATH}/.env'
                     """
                     
-                    // Reiniciar o iniciar la aplicación con PM2
+                    // Restart or start the application with PM2
                     sh """
                     ssh -i \$SSH_KEY -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_IP} '
                         cd ${REMOTE_PATH} &&
