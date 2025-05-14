@@ -2,7 +2,7 @@ pipeline {
     agent any
     
     environment {
-        // Environment variables defined properly with string values
+        // Variables de entorno
         NODE_ENV = "${env.BRANCH_NAME == 'main' ? 'production' : (env.BRANCH_NAME == 'qa' || env.BRANCH_NAME == 'QA') ? 'qa' : 'dev'}"
         EC2_USER = 'ubuntu'
         EC2_IP_DEV = '34.239.38.109'
@@ -11,7 +11,7 @@ pipeline {
         REMOTE_PATH_DEV = '/home/ubuntu/JenkinsTest-dev'
         REMOTE_PATH_QA = '/home/ubuntu/JenkinsTest-qa'
         REMOTE_PATH_PROD = '/home/ubuntu/JenkinsTest'
-        SSH_KEY = credentials('ssh-key-ec2')
+        SSH_KEY = credentials('ssh-key-ec2')  // Credencial guardada en Jenkins
         APP_NAME = "${env.BRANCH_NAME == 'main' ? 'health-api' : (env.BRANCH_NAME == 'qa' || env.BRANCH_NAME == 'QA') ? 'health-api-qa' : 'health-api-dev'}"
     }
     
@@ -24,30 +24,16 @@ pipeline {
             }
         }
         
-stage('Build') {
-    steps {
-        script {
-            echo 'Construyendo el proyecto...'
-            sshagent (credentials: ['ssh-key-ec2']) {
-                sh '''
-                    ssh -o StrictHostKeyChecking=no ubuntu@34.239.38.109 "
-                        git config --global --add safe.directory /home/ubuntu/JenkinsTest-dev &&
-                        mkdir -p /home/ubuntu/JenkinsTest-dev &&
-                        cd /home/ubuntu/JenkinsTest-dev &&
-                        git fetch --all &&
-                        git checkout dev &&
-                        git reset --hard origin/dev &&
-                        npm ci
-                    "
-                '''
+        stage('Build') {
+            steps {
+                sh 'rm -rf node_modules'
+                sh 'npm ci'
             }
         }
-    }
-}
-
+        
         stage('Test') {
             steps {
-                sh 'npm test || echo "No tests or tests failed but continuing"'
+                sh 'npm test || echo "No hay tests o fallaron, pero continuamos..."'
             }
         }
         
@@ -65,56 +51,55 @@ stage('Build') {
                     def EC2_IP = ''
                     def REMOTE_PATH = ''
                     
-                    // Determine IP and path based on branch
+                    // Determinar entorno
                     if (env.BRANCH_NAME == 'main') {
                         EC2_IP = EC2_IP_PROD
                         REMOTE_PATH = REMOTE_PATH_PROD
-                        
-                        // For production, request confirmation
                         input message: '¿Confirmar despliegue a PRODUCCIÓN?'
                     } else if (env.BRANCH_NAME == 'qa' || env.BRANCH_NAME == 'QA') {
                         EC2_IP = EC2_IP_QA
                         REMOTE_PATH = REMOTE_PATH_QA
-                    } else {  // dev
+                    } else {
                         EC2_IP = EC2_IP_DEV
                         REMOTE_PATH = REMOTE_PATH_DEV
                     }
                     
-                    echo "Desplegando en servidor ${NODE_ENV} (${EC2_IP})"
+                    echo "🚀 Desplegando en servidor ${NODE_ENV} (${EC2_IP})"
                     
-                    // Create .env file on the server
+                    // Contenido del archivo .env
                     def envContent = """
 NODE_ENV=${NODE_ENV}
 PORT=3000
 API_URL=https://api${NODE_ENV == 'production' ? '' : '-' + NODE_ENV}.example.com
 """
                     
-                    // Deploy the application
+                    // Paso 1: Desplegar código y ejecutar npm ci
                     sh """
                     ssh -i \$SSH_KEY -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_IP} '
-                        mkdir -p ${REMOTE_PATH} &&
-                        cd ${REMOTE_PATH} &&
-                        git fetch --all &&
-                        git checkout ${env.BRANCH_NAME} &&
-                        git reset --hard origin/${env.BRANCH_NAME} &&
+                        git config --global --add safe.directory ${REMOTE_PATH}  # Corrección clave
+                        mkdir -p ${REMOTE_PATH}
+                        cd ${REMOTE_PATH}
+                        git fetch --all
+                        git checkout ${env.BRANCH_NAME}
+                        git reset --hard origin/${env.BRANCH_NAME}
                         npm ci
                     '
                     """
                     
-                    // Create .env file on the server
+                    // Paso 2: Crear archivo .env
                     sh """
                     echo '${envContent}' | ssh -i \$SSH_KEY -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_IP} 'cat > ${REMOTE_PATH}/.env'
                     """
                     
-                    // Restart or start the application with PM2
+                    // Paso 3: Reiniciar aplicación con PM2
                     sh """
                     ssh -i \$SSH_KEY -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_IP} '
-                        cd ${REMOTE_PATH} &&
+                        cd ${REMOTE_PATH}
                         pm2 restart ${APP_NAME} || pm2 start server.js --name ${APP_NAME}
                     '
                     """
                     
-                    echo "Despliegue en ${NODE_ENV} completado"
+                    echo "✅ Despliegue en ${NODE_ENV} completado"
                 }
             }
         }
@@ -122,10 +107,10 @@ API_URL=https://api${NODE_ENV == 'production' ? '' : '-' + NODE_ENV}.example.com
     
     post {
         success {
-            echo "Pipeline ejecutado exitosamente en la rama ${env.BRANCH_NAME}!"
+            echo "🎉 ¡Pipeline ejecutado exitosamente en ${env.BRANCH_NAME}!"
         }
         failure {
-            echo "Pipeline fallido en la rama ${env.BRANCH_NAME}, revisa los logs para más información"
+            echo "❌ Pipeline fallido en ${env.BRANCH_NAME}. Revisar logs para detalles."
         }
     }
 }
