@@ -15,19 +15,30 @@ pipeline {
             }
         }
         
-        stage('Load Environment Variables') {
+        stage('Setup Environment') {
             steps {
                 script {
-                    // Cargar variables de entorno basadas en la rama seleccionada
+                    // Crear los archivos .env dinámicamente según la rama
                     if (env.BRANCH_NAME == 'dev') {
-                        loadEnvVars('.env.dev')
+                        writeEnvDev()
                     } else if (env.BRANCH_NAME == 'qa' || env.BRANCH_NAME == 'QA') {
-                        loadEnvVars('.env.qa')
+                        writeEnvQA()
                     } else if (env.BRANCH_NAME == 'main') {
-                        loadEnvVars('.env.prod')
+                        writeEnvProd()
                     } else {
                         error "Rama no reconocida para despliegue: ${env.BRANCH_NAME}"
                     }
+                    
+                    // Cargar las variables de entorno
+                    def envFile = env.BRANCH_NAME == 'main' ? '.env.prod' : 
+                                 (env.BRANCH_NAME == 'qa' || env.BRANCH_NAME == 'QA') ? '.env.qa' : '.env.dev'
+                    
+                    def props = readProperties file: envFile
+                    props.each { key, value ->
+                        env."${key}" = value
+                    }
+                    
+                    echo "Variables de entorno configuradas para: ${env.NODE_ENV}"
                 }
             }
         }
@@ -63,7 +74,7 @@ pipeline {
                     
                     echo "Desplegando en servidor ${env.NODE_ENV} (${env.EC2_IP})"
                     
-                    // Crear archivo .env en el servidor remoto
+                    // Leer el contenido del archivo .env
                     def envFileContent = readFile(file: env.BRANCH_NAME == 'main' ? '.env.prod' : 
                                               (env.BRANCH_NAME == 'qa' || env.BRANCH_NAME == 'QA') ? '.env.qa' : '.env.dev')
                     
@@ -108,16 +119,56 @@ pipeline {
     }
 }
 
-// Función para cargar variables desde un archivo .env
-def loadEnvVars(String file) {
-    if (!fileExists(file)) {
-        error "Archivo de variables de entorno no encontrado: ${file}"
-    }
-    
-    def props = readProperties file: file
-    props.each { key, value ->
-        env."${key}" = value
-    }
-    
-    echo "Variables de entorno cargadas desde ${file}"
+// Función para crear el archivo .env.dev
+def writeEnvDev() {
+    writeFile file: '.env.dev', text: """
+# Variables de entorno para DESARROLLO
+NODE_ENV=development
+EC2_USER=ubuntu
+EC2_IP=34.239.38.109
+REMOTE_PATH=/home/ubuntu/JenkinsTest-dev
+APP_NAME=health-api-dev
+PORT=3000
+API_URL=https://api-dev.example.com
+DB_HOST=dev-db.example.com
+DB_PORT=5432
+DB_NAME=devdb
+DB_USER=devuser
+"""
+}
+
+// Función para crear el archivo .env.qa
+def writeEnvQA() {
+    writeFile file: '.env.qa', text: """
+# Variables de entorno para QA
+NODE_ENV=qa
+EC2_USER=ubuntu
+EC2_IP=54.160.60.172
+REMOTE_PATH=/home/ubuntu/JenkinsTest-qa
+APP_NAME=health-api-qa
+PORT=3000
+API_URL=https://api-qa.example.com
+DB_HOST=qa-db.example.com
+DB_PORT=5432
+DB_NAME=qadb
+DB_USER=qauser
+"""
+}
+
+// Función para crear el archivo .env.prod
+def writeEnvProd() {
+    writeFile file: '.env.prod', text: """
+# Variables de entorno para PRODUCCIÓN
+NODE_ENV=production
+EC2_USER=ubuntu
+EC2_IP=23.21.175.134
+REMOTE_PATH=/home/ubuntu/JenkinsTest
+APP_NAME=health-api
+PORT=3000
+API_URL=https://api.example.com
+DB_HOST=prod-db.example.com
+DB_PORT=5432
+DB_NAME=proddb
+DB_USER=produser
+"""
 }
