@@ -24,13 +24,27 @@ pipeline {
             }
         }
         
-        stage('Build') {
-            steps {
-                sh 'rm -rf node_modules'
-                sh 'npm ci'
+stage('Build') {
+    steps {
+        script {
+            echo 'Construyendo el proyecto...'
+            sshagent (credentials: ['ssh-key-ec2']) {
+                sh '''
+                    ssh -o StrictHostKeyChecking=no ubuntu@34.239.38.109 "
+                        git config --global --add safe.directory /home/ubuntu/JenkinsTest-dev &&
+                        mkdir -p /home/ubuntu/JenkinsTest-dev &&
+                        cd /home/ubuntu/JenkinsTest-dev &&
+                        git fetch --all &&
+                        git checkout dev &&
+                        git reset --hard origin/dev &&
+                        npm ci
+                    "
+                '''
             }
         }
-        
+    }
+}
+
         stage('Test') {
             steps {
                 sh 'npm test || echo "No tests or tests failed but continuing"'
