@@ -18,7 +18,7 @@ pipeline {
         stage('Load Environment Variables') {
             steps {
                 script {
-                    // Cargar variables de entorno basadas en la rama
+                    // Cargar variables de entorno basadas en la rama seleccionada
                     if (env.BRANCH_NAME == 'dev') {
                         loadEnvVars('.env.dev')
                     } else if (env.BRANCH_NAME == 'qa' || env.BRANCH_NAME == 'QA') {
