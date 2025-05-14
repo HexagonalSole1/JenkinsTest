@@ -2,7 +2,6 @@ pipeline {
     agent any
     
     environment {
-        // Variables de entorno
         NODE_ENV = "${env.BRANCH_NAME == 'main' ? 'production' : (env.BRANCH_NAME == 'qa' || env.BRANCH_NAME == 'QA') ? 'qa' : 'dev'}"
         EC2_USER = 'ubuntu'
         EC2_IP_DEV = '34.239.38.109'
@@ -11,7 +10,7 @@ pipeline {
         REMOTE_PATH_DEV = '/home/ubuntu/JenkinsTest-dev'
         REMOTE_PATH_QA = '/home/ubuntu/JenkinsTest-qa'
         REMOTE_PATH_PROD = '/home/ubuntu/JenkinsTest'
-        SSH_KEY = credentials('ssh-key-ec2')  // Credencial guardada en Jenkins
+        SSH_KEY = credentials('ssh-key-ec2')
         APP_NAME = "${env.BRANCH_NAME == 'main' ? 'health-api' : (env.BRANCH_NAME == 'qa' || env.BRANCH_NAME == 'QA') ? 'health-api-qa' : 'health-api-dev'}"
     }
     
@@ -19,7 +18,7 @@ pipeline {
         stage('Checkout') {
             steps {
                 script {
-                    echo "Trabajando en la rama: ${env.BRANCH_NAME}"
+                    echo "✅ Trabajando en la rama: ${env.BRANCH_NAME}"
                 }
             }
         }
@@ -33,7 +32,7 @@ pipeline {
         
         stage('Test') {
             steps {
-                sh 'npm test || echo "No hay tests o fallaron, pero continuamos..."'
+                sh 'npm test || echo "⚠️ No hay tests o fallaron, pero continuamos..."'
             }
         }
         
@@ -55,7 +54,7 @@ pipeline {
                     if (env.BRANCH_NAME == 'main') {
                         EC2_IP = EC2_IP_PROD
                         REMOTE_PATH = REMOTE_PATH_PROD
-                        input message: '¿Confirmar despliegue a PRODUCCIÓN?'
+                        input message: '🚨 ¿Confirmar despliegue a PRODUCCIÓN?'
                     } else if (env.BRANCH_NAME == 'qa' || env.BRANCH_NAME == 'QA') {
                         EC2_IP = EC2_IP_QA
                         REMOTE_PATH = REMOTE_PATH_QA
@@ -73,11 +72,17 @@ PORT=3000
 API_URL=https://api${NODE_ENV == 'production' ? '' : '-' + NODE_ENV}.example.com
 """
                     
-                    // Paso 1: Desplegar código y ejecutar npm ci
+                    // Paso 1: Asegurar permisos y desplegar código
                     sh """
                     ssh -i \$SSH_KEY -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_IP} '
-                        git config --global --add safe.directory ${REMOTE_PATH}  # Corrección clave
+                        # Corregir permisos recursivamente (incluyendo .git)
+                        sudo chown -R ubuntu:ubuntu ${REMOTE_PATH} || true  # Ignorar error si no existe
                         mkdir -p ${REMOTE_PATH}
+                        sudo chown -R ubuntu:ubuntu ${REMOTE_PATH}
+                        sudo chmod -R 755 ${REMOTE_PATH}
+                        
+                        # Configurar Git y desplegar
+                        git config --global --add safe.directory ${REMOTE_PATH}
                         cd ${REMOTE_PATH}
                         git fetch --all
                         git checkout ${env.BRANCH_NAME}
@@ -99,7 +104,7 @@ API_URL=https://api${NODE_ENV == 'production' ? '' : '-' + NODE_ENV}.example.com
                     '
                     """
                     
-                    echo "✅ Despliegue en ${NODE_ENV} completado"
+                    echo "✅ Despliegue en ${NODE_ENV} completado con éxito!"
                 }
             }
         }
@@ -107,10 +112,10 @@ API_URL=https://api${NODE_ENV == 'production' ? '' : '-' + NODE_ENV}.example.com
     
     post {
         success {
-            echo "🎉 ¡Pipeline ejecutado exitosamente en ${env.BRANCH_NAME}!"
+            echo "🎉 ¡Pipeline exitoso en ${env.BRANCH_NAME}!"
         }
         failure {
-            echo "❌ Pipeline fallido en ${env.BRANCH_NAME}. Revisar logs para detalles."
+            echo "❌ Fallo en ${env.BRANCH_NAME}. Verifica los logs."
         }
     }
 }
