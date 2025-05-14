@@ -11,7 +11,7 @@ app.get('/health', (_req, res) => {
 });
 
 app.get('/hello', (_req, res) => {
-  res.status(200).json({ status: 'OK', timestamp: new Date().toISOString(), author: 'OA Soy un GET para dev 3' });
+  res.status(200).json({ status: 'OK', timestamp: new Date().toISOString(), author: 'OA Soy un GET para dev 3 para QA' });
 });
 
 const PORT = process.env.PORT || 3000;
