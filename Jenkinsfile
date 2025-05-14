@@ -9,24 +9,18 @@ pipeline {
         EC2_USER = 'ubuntu'
         SSH_KEY = credentials('ssh-key-ec2')
         
-        // Mapas para configuración dinámica
-        EC2_IPS = [
-            dev: '34.239.38.109',
-            qa: '54.160.60.172',
-            production: '23.21.175.134'
-        ]
+        // IPs de servidores por entorno
+        EC2_IP_DEV = '34.239.38.109'
+        EC2_IP_QA = '54.160.60.172'
+        EC2_IP_PROD = '23.21.175.134'
         
-        REMOTE_PATHS = [
-            dev: '/home/ubuntu/JenkinsTest-dev',
-            qa: '/home/ubuntu/JenkinsTest-qa',
-            production: '/home/ubuntu/JenkinsTest'
-        ]
+        // Rutas remotas por entorno
+        REMOTE_PATH_DEV = '/home/ubuntu/JenkinsTest-dev'
+        REMOTE_PATH_QA = '/home/ubuntu/JenkinsTest-qa'
+        REMOTE_PATH_PROD = '/home/ubuntu/JenkinsTest'
         
-        APP_NAME = "health-api${NODE_ENV == 'production' ? '' : '-' + NODE_ENV}"
-        
-        // Usar temporalmente estas variables para facilitar el acceso
-        EC2_IP = "${EC2_IPS[NODE_ENV]}"
-        REMOTE_PATH = "${REMOTE_PATHS[NODE_ENV]}"
+        // Nombre de la aplicación
+        APP_NAME = "${env.BRANCH_NAME == 'main' ? 'health-api' : (env.BRANCH_NAME == 'qa' || env.BRANCH_NAME == 'QA') ? 'health-api-qa' : 'health-api-dev'}"
         
         // Definir timeout para operaciones SSH
         SSH_TIMEOUT = '300'
@@ -41,6 +35,20 @@ pipeline {
     stages {
         stage('Preparación') {
             steps {
+                script {
+                    // Determinar IP y ruta según el entorno
+                    if (env.NODE_ENV == 'production') {
+                        env.EC2_IP = env.EC2_IP_PROD
+                        env.REMOTE_PATH = env.REMOTE_PATH_PROD
+                    } else if (env.NODE_ENV == 'qa') {
+                        env.EC2_IP = env.EC2_IP_QA
+                        env.REMOTE_PATH = env.REMOTE_PATH_QA
+                    } else {
+                        env.EC2_IP = env.EC2_IP_DEV
+                        env.REMOTE_PATH = env.REMOTE_PATH_DEV
+                    }
+                }
+                
                 echo "✅ Iniciando pipeline en ${NODE_ENV} para la rama: ${env.BRANCH_NAME}"
                 echo "✅ Servidor de destino: ${EC2_IP}"
                 echo "✅ Ruta remota: ${REMOTE_PATH}"
